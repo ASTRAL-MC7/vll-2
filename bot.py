@@ -491,7 +491,10 @@ async def main():
     async def telegram_webhook(request: web.Request):
         data = await request.json()
         update = Update.de_json(data, application.bot)
-        await application.process_update(update)
+        # Respond to Telegram immediately so it never times out and resends
+        # the same update (which was causing duplicate replies). The actual
+        # handling happens in the background.
+        asyncio.create_task(application.process_update(update))
         return web.Response(text="OK")
 
     async def health(request: web.Request):
@@ -499,6 +502,7 @@ async def main():
 
     aio_app = web.Application()
     aio_app.router.add_post(f"/webhook/{BOT_TOKEN}", telegram_webhook)
+    aio_app.router.add_post("/", telegram_webhook)  # safety net if webhook ever points at bare domain
     aio_app.router.add_get("/health", health)
     aio_app.router.add_get("/", health)
 
